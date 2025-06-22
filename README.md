@@ -22,7 +22,7 @@ This project demonstrates safe management, validation, and restoration of YAML c
 Clone the repository:
 
 ```sh
-git clone https://github.com/yourusername/go-config-manager.git
+git clone https://github.com/dimalukas/go-config-manager.git
 cd go-config-manager
 ```
 
