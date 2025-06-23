@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -18,6 +19,10 @@ type ConfigManager[T any] struct {
 	configPath      string
 	backupPath      string
 	requiredKeys    []string
+	checkInterval   time.Duration
+	logInterval     time.Duration
+	watchCtx        context.Context
+	watchCancel     context.CancelFunc
 	postRestoreFunc func()
 }
 
@@ -26,6 +31,8 @@ func NewConfigManager[T any](
 	configPath, backupPath string,
 	requiredKeys []string,
 	configPtr *T,
+	checkInterval time.Duration,
+	logInterval time.Duration,
 	postRestoreFunc func(),
 ) (*ConfigManager[T], error) {
 	if configPath == "" || backupPath == "" {
@@ -38,6 +45,8 @@ func NewConfigManager[T any](
 		backupPath:      backupPath,
 		requiredKeys:    requiredKeys,
 		config:          configPtr,
+		checkInterval:   checkInterval,
+		logInterval:     logInterval,
 		postRestoreFunc: postRestoreFunc,
 	}
 
@@ -55,8 +64,6 @@ func NewConfigManager[T any](
 	}
 
 	manager.v.WatchConfig()
-
-	go manager.checkAndRestorePeriodically()
 
 	log.Printf("Config loaded from '%s'", configPath)
 	return manager, nil
@@ -126,25 +133,49 @@ func (cm *ConfigManager[T]) restoreFromBackup() error {
 	return nil
 }
 
-// checkAndRestorePeriodically checks config health every 5 seconds.
-func (cm *ConfigManager[T]) checkAndRestorePeriodically() {
+// StartWatch starts the periodic config check in a background goroutine.
+// If already running, it stops the previous watcher before starting a new one.
+func (cm *ConfigManager[T]) StartWatch() {
+	cm.StopWatch() // Stop any existing watcher
+	cm.watchCtx, cm.watchCancel = context.WithCancel(context.Background())
+	go cm.watchLoop(cm.watchCtx)
+}
+
+// StopWatch stops the periodic config check if running.
+func (cm *ConfigManager[T]) StopWatch() {
+	if cm.watchCancel != nil {
+		cm.watchCancel()
+		cm.watchCancel = nil
+	}
+}
+
+// watchLoop periodically checks the config file's validity at the configured interval.
+// If the config is invalid, it attempts to restore from backup. The check stops when the context is cancelled.
+func (cm *ConfigManager[T]) watchLoop(ctx context.Context) {
+	ticker := time.NewTicker(cm.checkInterval)
+	defer ticker.Stop()
 	for {
-		time.Sleep(5 * time.Second)
-		if !cm.isConfigValid() {
-			log.Printf("invalid config: %s", cm.configPath)
-			cm.mu.Lock()
-			if err := cm.restoreFromBackup(); err != nil {
-				log.Printf("restore config '%s' error: %v", cm.configPath, err)
+		select {
+		case <-ctx.Done():
+			log.Printf("Stopped periodic config check for %s", cm.configPath)
+			return
+		case <-ticker.C:
+			if !cm.isConfigValid() {
+				log.Printf("invalid config: %s", cm.configPath)
+				cm.mu.Lock()
+				if err := cm.restoreFromBackup(); err != nil {
+					log.Printf("restore config '%s' error: %v", cm.configPath, err)
+				}
+				cm.mu.Unlock()
 			}
-			cm.mu.Unlock()
 		}
 	}
 }
 
-// printConfigPeriodically safely reads and prints the config every 3 seconds.
-func (cm *ConfigManager[T]) printConfigPeriodically() {
+// LogConfig periodically logs the current config at the configured logInterval.
+func (cm *ConfigManager[T]) LogConfig() {
 	for {
-		time.Sleep(3 * time.Second)
+		time.Sleep(cm.logInterval)
 		cm.mu.RLock()
 		log.Printf("%s: %+v\n", cm.configPath, *cm.config)
 		cm.mu.RUnlock()

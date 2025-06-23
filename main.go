@@ -25,15 +25,23 @@ func main() {
 		"port", "updatecount",
 	}
 
-	mainConfigManager, err := NewConfigManager("config.yaml", "config.backup.yaml", mainConfigKeys, config, postRestoreFunc)
+	mainConfigManager, err := NewConfigManager(
+		"config.yaml", "config.backup.yaml",
+		mainConfigKeys,
+		config,
+		5*time.Second,
+		3*time.Second,
+		postRestoreFunc,
+	)
 	if err != nil {
 		log.Fatalf("init failed: %v", err)
 	}
 
 	go simulateConfigChanges(mainConfigManager)
-	go mainConfigManager.printConfigPeriodically()
 	go mainConfigManager.addRandomKeyPeriodically()
 	go mainConfigManager.corruptConfigFilePeriodically()
+	go mainConfigManager.LogConfig()
+	mainConfigManager.StartWatch()
 
 	select {}
 }
