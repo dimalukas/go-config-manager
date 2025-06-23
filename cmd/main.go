@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"os"
 	"time"
+
+	gcm "github.com/dimalukas/go-config-manager"
 )
 
 // Config represents the structure of our YAML file.
@@ -25,7 +27,7 @@ func main() {
 		"port", "updatecount",
 	}
 
-	mainConfigManager, err := NewConfigManager(
+	mainConfigManager, err := gcm.NewConfigManager(
 		"config.yaml", "config.backup.yaml",
 		mainConfigKeys,
 		config,
@@ -38,8 +40,8 @@ func main() {
 	}
 
 	go simulateConfigChanges(mainConfigManager)
-	go mainConfigManager.addRandomKeyPeriodically()
-	go mainConfigManager.corruptConfigFilePeriodically()
+	go addRandomKeyPeriodically(mainConfigManager)
+	go corruptConfigFilePeriodically(mainConfigManager)
 	go mainConfigManager.LogConfig()
 	mainConfigManager.StartWatch()
 
@@ -47,7 +49,7 @@ func main() {
 }
 
 // simulateConfigChanges simulates an app component updating the config every 7 seconds.
-func simulateConfigChanges(cm *ConfigManager[Config]) {
+func simulateConfigChanges(cm *gcm.ConfigManager[Config]) {
 	for {
 		time.Sleep(6 * time.Second)
 		newPort := 8000 + rand.Intn(100)
@@ -64,25 +66,25 @@ func simulateConfigChanges(cm *ConfigManager[Config]) {
 }
 
 // addRandomKeyPeriodically adds a random extra key to the config every 15 seconds.
-func (cm *ConfigManager[T]) addRandomKeyPeriodically() {
+func addRandomKeyPeriodically(cm *gcm.ConfigManager[Config]) {
 	for {
 		time.Sleep(15 * time.Second)
 		randomKey := fmt.Sprintf("extra_key_%d", rand.Intn(10000))
 		randomValue := rand.Intn(100000)
 		cm.SetKey(randomKey, randomValue)
 		if err := cm.SaveConfig(true); err != nil {
-			log.Printf("config file '%s' random key write error: %v", cm.configPath, err)
+			log.Printf("config file '%s' random key write error: %v", cm.ConfigPath, err)
 		}
 	}
 }
 
 // corruptConfigFilePeriodically messes up the config file every 25 seconds.
-func (cm *ConfigManager[T]) corruptConfigFilePeriodically() {
+func corruptConfigFilePeriodically(cm *gcm.ConfigManager[Config]) {
 	for {
 		time.Sleep(25 * time.Second)
-		log.Printf("corrupting file: %s", cm.configPath)
+		log.Printf("corrupting file: %s", cm.ConfigPath)
 		badData := []byte("i am not a valid yaml file")
-		if err := os.WriteFile(cm.configPath, badData, 0644); err != nil {
+		if err := os.WriteFile(cm.ConfigPath, badData, 0644); err != nil {
 			log.Printf("corrupt write error: %v", err)
 		}
 	}

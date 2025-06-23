@@ -1,4 +1,4 @@
-package main
+package goconfigmanager
 
 import (
 	"context"
@@ -16,8 +16,8 @@ type ConfigManager[T any] struct {
 	v               *viper.Viper
 	Config          *T
 	mu              sync.RWMutex
-	configPath      string
-	backupPath      string
+	ConfigPath      string
+	BackupPath      string
 	requiredKeys    []string
 	checkInterval   time.Duration
 	logInterval     time.Duration
@@ -41,8 +41,8 @@ func NewConfigManager[T any](
 
 	manager := &ConfigManager[T]{
 		v:               viper.New(),
-		configPath:      configPath,
-		backupPath:      backupPath,
+		ConfigPath:      configPath,
+		BackupPath:      backupPath,
 		requiredKeys:    requiredKeys,
 		Config:          configPtr,
 		checkInterval:   checkInterval,
@@ -55,7 +55,7 @@ func NewConfigManager[T any](
 
 	if err := manager.v.ReadInConfig(); err != nil || !manager.isConfigValid() {
 		if err := manager.restoreFromBackup(); err != nil {
-			return nil, fmt.Errorf("error reading config '%s' and failed to restore from backup '%s': %w", configPath, manager.backupPath, err)
+			return nil, fmt.Errorf("error reading config '%s' and failed to restore from backup '%s': %w", configPath, manager.BackupPath, err)
 		}
 	}
 
@@ -76,7 +76,7 @@ func (cm *ConfigManager[T]) isConfigValid() bool {
 	}
 	// Try to re-read the config file
 	if err := cm.v.ReadInConfig(); err != nil {
-		log.Printf("config file '%s'is not valid YAML: %v", cm.configPath, err)
+		log.Printf("config file '%s'is not valid YAML: %v", cm.ConfigPath, err)
 		return false
 	}
 
@@ -85,19 +85,19 @@ func (cm *ConfigManager[T]) isConfigValid() bool {
 	for _, key := range cm.requiredKeys {
 		required[key] = struct{}{}
 		if !cm.v.IsSet(key) {
-			log.Printf("config file '%s' is missing required key: %s", cm.configPath, key)
+			log.Printf("config file '%s' is missing required key: %s", cm.ConfigPath, key)
 			return false
 		}
 	}
 	// Check for extra keys
 	allKeys := cm.v.AllKeys()
 	if len(allKeys) != len(cm.requiredKeys) {
-		log.Printf("config file '%s' has extra or missing keys: %v (expected: %v)", cm.configPath, allKeys, cm.requiredKeys)
+		log.Printf("config file '%s' has extra or missing keys: %v (expected: %v)", cm.ConfigPath, allKeys, cm.requiredKeys)
 		return false
 	}
 	for _, key := range allKeys {
 		if _, ok := required[key]; !ok {
-			log.Printf("config file '%s' has unexpected extra key: %s", cm.configPath, key)
+			log.Printf("config file '%s' has unexpected extra key: %s", cm.ConfigPath, key)
 			return false
 		}
 	}
@@ -108,23 +108,23 @@ func (cm *ConfigManager[T]) isConfigValid() bool {
 
 // restoreFromBackup reads the backup file and writes its content to the main config file for this manager.
 func (cm *ConfigManager[T]) restoreFromBackup() error {
-	backupData, err := os.ReadFile(cm.backupPath)
+	backupData, err := os.ReadFile(cm.BackupPath)
 	if err != nil {
-		return fmt.Errorf("failed to read backup file '%s': %w", cm.backupPath, err)
+		return fmt.Errorf("failed to read backup file '%s': %w", cm.BackupPath, err)
 	}
-	if err := os.WriteFile(cm.configPath, backupData, 0644); err != nil {
-		return fmt.Errorf("failed to write to main config file '%s': %w", cm.configPath, err)
+	if err := os.WriteFile(cm.ConfigPath, backupData, 0644); err != nil {
+		return fmt.Errorf("failed to write to main config file '%s': %w", cm.ConfigPath, err)
 	}
 	cm.v = viper.New()
-	cm.v.SetConfigFile(cm.configPath)
+	cm.v.SetConfigFile(cm.ConfigPath)
 	cm.v.SetConfigType("yaml")
 	if err := cm.v.ReadInConfig(); err != nil {
-		return fmt.Errorf("failed to read in config '%s' after restore: %w", cm.configPath, err)
+		return fmt.Errorf("failed to read in config '%s' after restore: %w", cm.ConfigPath, err)
 	}
 	if err := cm.v.Unmarshal(&cm.Config); err != nil {
-		return fmt.Errorf("failed to unmarshal '%s' after restore: %w", cm.configPath, err)
+		return fmt.Errorf("failed to unmarshal '%s' after restore: %w", cm.ConfigPath, err)
 	}
-	log.Printf("restored '%s' from backup: '%s'", cm.configPath, cm.backupPath)
+	log.Printf("restored '%s' from backup: '%s'", cm.ConfigPath, cm.BackupPath)
 
 	if cm.postRestoreFunc != nil {
 		cm.postRestoreFunc()
@@ -157,14 +157,14 @@ func (cm *ConfigManager[T]) watchLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("Stopped periodic config check for %s", cm.configPath)
+			log.Printf("Stopped periodic config check for %s", cm.ConfigPath)
 			return
 		case <-ticker.C:
 			if !cm.isConfigValid() {
-				log.Printf("invalid config: %s", cm.configPath)
+				log.Printf("invalid config: %s", cm.ConfigPath)
 				cm.mu.Lock()
 				if err := cm.restoreFromBackup(); err != nil {
-					log.Printf("restore config '%s' error: %v", cm.configPath, err)
+					log.Printf("restore config '%s' error: %v", cm.ConfigPath, err)
 				}
 				cm.mu.Unlock()
 			}
@@ -177,7 +177,7 @@ func (cm *ConfigManager[T]) LogConfig() {
 	for {
 		time.Sleep(cm.logInterval)
 		cm.mu.RLock()
-		log.Printf("%s: %+v\n", cm.configPath, *cm.Config)
+		log.Printf("%s: %+v\n", cm.ConfigPath, *cm.Config)
 		cm.mu.RUnlock()
 	}
 }
