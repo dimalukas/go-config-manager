@@ -35,8 +35,8 @@ func NewConfigManager[T any](
 	logInterval time.Duration,
 	postRestoreFunc func(),
 ) (*ConfigManager[T], error) {
-	if configPath == "" || backupPath == "" {
-		return nil, fmt.Errorf("configPath and backupPath must not be empty")
+	if configPath == "" {
+		return nil, fmt.Errorf("configPath must not be empty")
 	}
 
 	manager := &ConfigManager[T]{
