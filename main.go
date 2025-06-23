@@ -50,22 +50,16 @@ func main() {
 func simulateConfigChanges(cm *ConfigManager[Config]) {
 	for {
 		time.Sleep(6 * time.Second)
-		cm.mu.Lock()
 		newPort := 8000 + rand.Intn(100)
 		updateCount := cm.config.UpdateCount + 1
-		cm.v.Set("port", newPort)
-		cm.v.Set("updateCount", updateCount)
-		if err := cm.v.WriteConfig(); err != nil {
+		cm.SetKey("port", newPort)
+		cm.SetKey("updateCount", updateCount)
+		if err := cm.SaveConfig(true); err != nil {
 			log.Printf("update failed: write error: %v", err)
-			cm.mu.Unlock()
 			continue
-		}
-		if err := cm.v.Unmarshal(&cm.config); err != nil {
-			log.Printf("update failed: unmarshal error: %v", err)
 		} else {
 			log.Printf("updated: port=%d count=%d", newPort, updateCount)
 		}
-		cm.mu.Unlock()
 	}
 }
 
@@ -73,14 +67,12 @@ func simulateConfigChanges(cm *ConfigManager[Config]) {
 func (cm *ConfigManager[T]) addRandomKeyPeriodically() {
 	for {
 		time.Sleep(15 * time.Second)
-		cm.mu.Lock()
 		randomKey := fmt.Sprintf("extra_key_%d", rand.Intn(10000))
 		randomValue := rand.Intn(100000)
-		cm.v.Set(randomKey, randomValue)
-		if err := cm.v.WriteConfig(); err != nil {
+		cm.SetKey(randomKey, randomValue)
+		if err := cm.SaveConfig(true); err != nil {
 			log.Printf("config file '%s' random key write error: %v", cm.configPath, err)
 		}
-		cm.mu.Unlock()
 	}
 }
 

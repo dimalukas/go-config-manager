@@ -181,3 +181,25 @@ func (cm *ConfigManager[T]) LogConfig() {
 		cm.mu.RUnlock()
 	}
 }
+
+// SetKey sets a key-value pair in the Viper config.
+func (cm *ConfigManager[T]) SetKey(key string, value interface{}) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.v.Set(key, value)
+}
+
+// SaveConfig writes the config to file. If unmarshal is true, also updates the struct.
+func (cm *ConfigManager[T]) SaveConfig(unmarshal bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	if err := cm.v.WriteConfig(); err != nil {
+		return err
+	}
+	if unmarshal {
+		if err := cm.v.Unmarshal(&cm.config); err != nil {
+			return err
+		}
+	}
+	return nil
+}
