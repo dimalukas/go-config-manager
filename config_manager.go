@@ -14,7 +14,7 @@ import (
 // ConfigManager encapsulates all logic for managing a single Viper configuration.
 type ConfigManager[T any] struct {
 	v               *viper.Viper
-	config          *T
+	Config          *T
 	mu              sync.RWMutex
 	configPath      string
 	backupPath      string
@@ -44,7 +44,7 @@ func NewConfigManager[T any](
 		configPath:      configPath,
 		backupPath:      backupPath,
 		requiredKeys:    requiredKeys,
-		config:          configPtr,
+		Config:          configPtr,
 		checkInterval:   checkInterval,
 		logInterval:     logInterval,
 		postRestoreFunc: postRestoreFunc,
@@ -59,7 +59,7 @@ func NewConfigManager[T any](
 		}
 	}
 
-	if err := manager.v.Unmarshal(&manager.config); err != nil {
+	if err := manager.v.Unmarshal(&manager.Config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config from '%s': %w", configPath, err)
 	}
 
@@ -121,7 +121,7 @@ func (cm *ConfigManager[T]) restoreFromBackup() error {
 	if err := cm.v.ReadInConfig(); err != nil {
 		return fmt.Errorf("failed to read in config '%s' after restore: %w", cm.configPath, err)
 	}
-	if err := cm.v.Unmarshal(&cm.config); err != nil {
+	if err := cm.v.Unmarshal(&cm.Config); err != nil {
 		return fmt.Errorf("failed to unmarshal '%s' after restore: %w", cm.configPath, err)
 	}
 	log.Printf("restored '%s' from backup: '%s'", cm.configPath, cm.backupPath)
@@ -177,7 +177,7 @@ func (cm *ConfigManager[T]) LogConfig() {
 	for {
 		time.Sleep(cm.logInterval)
 		cm.mu.RLock()
-		log.Printf("%s: %+v\n", cm.configPath, *cm.config)
+		log.Printf("%s: %+v\n", cm.configPath, *cm.Config)
 		cm.mu.RUnlock()
 	}
 }
@@ -197,7 +197,7 @@ func (cm *ConfigManager[T]) SaveConfig(unmarshal bool) error {
 		return err
 	}
 	if unmarshal {
-		if err := cm.v.Unmarshal(&cm.config); err != nil {
+		if err := cm.v.Unmarshal(&cm.Config); err != nil {
 			return err
 		}
 	}

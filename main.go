@@ -51,7 +51,7 @@ func simulateConfigChanges(cm *ConfigManager[Config]) {
 	for {
 		time.Sleep(6 * time.Second)
 		newPort := 8000 + rand.Intn(100)
-		updateCount := cm.config.UpdateCount + 1
+		updateCount := cm.Config.UpdateCount + 1
 		cm.SetKey("port", newPort)
 		cm.SetKey("updateCount", updateCount)
 		if err := cm.SaveConfig(true); err != nil {
