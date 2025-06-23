@@ -1,4 +1,4 @@
-module go-config-manager
+module github.com/dimalukas/go-config-manager
 
 go 1.23.4
 
