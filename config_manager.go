@@ -80,6 +80,10 @@ func (cm *ConfigManager[T]) isConfigValid() bool {
 		return false
 	}
 
+	if len(cm.requiredKeys) == 0 {
+		return true
+	}
+
 	// Check all required keys are set
 	required := make(map[string]struct{}, len(cm.requiredKeys))
 	for _, key := range cm.requiredKeys {
