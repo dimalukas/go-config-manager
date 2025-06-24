@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
@@ -67,6 +68,15 @@ func NewConfigManager[T any](
 	}
 
 	manager.v.WatchConfig()
+	manager.v.OnConfigChange(func(e fsnotify.Event) {
+		manager.mu.Lock()
+		defer manager.mu.Unlock()
+		if manager.isConfigValid() {
+			if err := manager.v.Unmarshal(manager.Config); err != nil {
+				log.Printf("failed to unmarshal config on change: %v", err)
+			}
+		}
+	})
 
 	log.Printf("Config loaded from '%s'", configPath)
 	return manager, nil
