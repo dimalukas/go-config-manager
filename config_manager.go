@@ -57,9 +57,16 @@ func NewConfigManager[T any](
 	manager.v.SetConfigFile(configPath)
 	manager.v.SetConfigType("yaml")
 
-	if err := manager.v.ReadInConfig(); err != nil || !manager.isConfigValid() {
+	err := manager.v.ReadInConfig()
+	if err != nil {
 		if err := manager.restoreFromBackup(); err != nil {
 			return nil, fmt.Errorf("error reading config '%s' and failed to restore from backup '%s': %w", configPath, manager.BackupPath, err)
+		}
+	} else {
+		if valid, _ := manager.isConfigValid(); !valid {
+			if err := manager.restoreFromBackup(); err != nil {
+				return nil, fmt.Errorf("config '%s' is invalid and failed to restore from backup '%s': %w", configPath, manager.BackupPath, err)
+			}
 		}
 	}
 
@@ -71,7 +78,7 @@ func NewConfigManager[T any](
 	manager.v.OnConfigChange(func(e fsnotify.Event) {
 		manager.mu.Lock()
 		defer manager.mu.Unlock()
-		if manager.isConfigValid() {
+		if valid, _ := manager.isConfigValid(); valid {
 			if err := manager.v.Unmarshal(manager.Config); err != nil {
 				log.Printf("failed to unmarshal config on change: %v", err)
 			}
@@ -83,44 +90,50 @@ func NewConfigManager[T any](
 }
 
 // isConfigValid checks if all required keys are present and valid in this manager's viper instance.
-func (cm *ConfigManager[T]) isConfigValid() bool {
+func (cm *ConfigManager[T]) isConfigValid() (bool, error) {
 	if cm.v == nil {
-		return false
+		return false, fmt.Errorf("viper instance is nil")
 	}
 	// Try to re-read the config file
 	if err := cm.v.ReadInConfig(); err != nil {
-		log.Printf("config file '%s'is not valid YAML: %v", cm.ConfigPath, err)
-		return false
+		return false, fmt.Errorf("config file '%s'is not valid YAML: %v", cm.ConfigPath, err)
 	}
 
 	if len(cm.requiredKeys) == 0 {
-		return true
+		return true, nil
 	}
 
 	// Check all required keys are set
+	missingKeys := []string{}
 	required := make(map[string]struct{}, len(cm.requiredKeys))
 	for _, key := range cm.requiredKeys {
 		required[key] = struct{}{}
 		if !cm.v.IsSet(key) {
-			log.Printf("config file '%s' is missing required key: %s", cm.ConfigPath, key)
-			return false
+			missingKeys = append(missingKeys, key)
 		}
+	}
+	if len(missingKeys) > 0 {
+		return false, fmt.Errorf("config file '%s' is missing required keys: %v", cm.ConfigPath, missingKeys)
 	}
 	// Check for extra keys
 	allKeys := cm.v.AllKeys()
-	if len(allKeys) != len(cm.requiredKeys) {
-		log.Printf("config file '%s' has extra or missing keys: %v (expected: %v)", cm.ConfigPath, allKeys, cm.requiredKeys)
-		return false
-	}
+	extraKeys := []string{}
 	for _, key := range allKeys {
 		if _, ok := required[key]; !ok {
-			log.Printf("config file '%s' has unexpected extra key: %s", cm.ConfigPath, key)
-			return false
+			extraKeys = append(extraKeys, key)
 		}
 	}
+	if len(extraKeys) > 0 {
+		return false, fmt.Errorf("config file '%s' has unexpected extra keys: %v", cm.ConfigPath, extraKeys)
+	}
+
 	// Try to unmarshal into the config struct to catch type errors
 	var temp T
-	return cm.v.Unmarshal(&temp) == nil
+	if err := cm.v.Unmarshal(&temp); err != nil {
+		return false, fmt.Errorf("config file '%s' has invalid values: %v", cm.ConfigPath, err)
+	}
+
+	return true, nil
 }
 
 // restoreFromBackup reads the backup file and writes its content to the main config file for this manager.
@@ -182,8 +195,8 @@ func (cm *ConfigManager[T]) watchLoop(ctx context.Context) {
 			log.Printf("Stopped periodic config check for %s", cm.ConfigPath)
 			return
 		case <-ticker.C:
-			if !cm.isConfigValid() {
-				log.Printf("invalid config: %s", cm.ConfigPath)
+			if valid, err := cm.isConfigValid(); !valid {
+				log.Printf("invalid config: %s: %v", cm.ConfigPath, err)
 				cm.mu.Lock()
 				if err := cm.restoreFromBackup(); err != nil {
 					log.Printf("restore config '%s' error: %v", cm.ConfigPath, err)
