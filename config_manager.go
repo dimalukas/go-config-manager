@@ -23,6 +23,7 @@ type ConfigManager[T any] struct {
 	logInterval     time.Duration
 	watchCtx        context.Context
 	watchCancel     context.CancelFunc
+	preRestoreFunc  func()
 	postRestoreFunc func()
 }
 
@@ -33,6 +34,7 @@ func NewConfigManager[T any](
 	configPtr *T,
 	checkInterval time.Duration,
 	logInterval time.Duration,
+	preRestoreFunc func(),
 	postRestoreFunc func(),
 ) (*ConfigManager[T], error) {
 	if configPath == "" {
@@ -47,6 +49,7 @@ func NewConfigManager[T any](
 		Config:          configPtr,
 		checkInterval:   checkInterval,
 		logInterval:     logInterval,
+		preRestoreFunc:  preRestoreFunc,
 		postRestoreFunc: postRestoreFunc,
 	}
 
@@ -119,6 +122,11 @@ func (cm *ConfigManager[T]) restoreFromBackup() error {
 	if err := os.WriteFile(cm.ConfigPath, backupData, 0644); err != nil {
 		return fmt.Errorf("failed to write to main config file '%s': %w", cm.ConfigPath, err)
 	}
+
+	if cm.preRestoreFunc != nil {
+		cm.preRestoreFunc()
+	}
+
 	cm.v = viper.New()
 	cm.v.SetConfigFile(cm.ConfigPath)
 	cm.v.SetConfigType("yaml")

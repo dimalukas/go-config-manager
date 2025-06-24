@@ -33,6 +33,7 @@ func main() {
 		config,
 		5*time.Second,
 		3*time.Second,
+		preRestoreFunc,
 		postRestoreFunc,
 	)
 	if err != nil {
@@ -92,4 +93,8 @@ func corruptConfigFilePeriodically(cm *gcm.ConfigManager[Config]) {
 
 func postRestoreFunc() {
 	log.Println("post-restore function called")
+}
+
+func preRestoreFunc() {
+	log.Println("pre-restore function called")
 }
