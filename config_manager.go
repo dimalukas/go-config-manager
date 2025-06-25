@@ -218,10 +218,40 @@ func (cm *ConfigManager[T]) LogConfig() {
 }
 
 // SetKey sets a key-value pair in the Viper config.
-func (cm *ConfigManager[T]) SetKey(key string, value interface{}) {
+func (cm *ConfigManager[T]) SetKey(key string, value any) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.v.Set(key, value)
+}
+
+// GetKey retrieves a key-value pair from the Viper config.
+func (cm *ConfigManager[T]) GetKey(key string) (any, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	if !cm.v.IsSet(key) {
+		return nil, false
+	}
+	return cm.v.Get(key), true
+}
+
+// AllKeys retrieves all keys from the Viper config.
+func (cm *ConfigManager[T]) AllKeys() []string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.v.AllKeys()
+}
+
+func (cm *ConfigManager[T]) AllSettings() map[string]any {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.v.AllSettings()
+}
+
+// IsSet checks if a key is set in the Viper config.
+func (cm *ConfigManager[T]) IsSet(key string) bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.v.IsSet(key)
 }
 
 // SaveConfig writes the config to file. If unmarshal is true, also updates the struct.
