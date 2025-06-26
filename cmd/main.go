@@ -33,12 +33,13 @@ func main() {
 		config,
 		5*time.Second,
 		3*time.Second,
-		preRestoreFunc,
-		postRestoreFunc,
 	)
 	if err != nil {
 		log.Fatalf("init failed: %v", err)
 	}
+
+	mainConfigManager.SetPreRestoreFunc(preRestoreFunc)
+	mainConfigManager.SetPostRestoreFunc(postRestoreFunc)
 
 	go simulateConfigChanges(mainConfigManager)
 	go addRandomKeyPeriodically(mainConfigManager)

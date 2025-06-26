@@ -35,23 +35,19 @@ func NewConfigManager[T any](
 	configPtr *T,
 	checkInterval time.Duration,
 	logInterval time.Duration,
-	preRestoreFunc func(),
-	postRestoreFunc func(),
 ) (*ConfigManager[T], error) {
 	if configPath == "" {
 		return nil, fmt.Errorf("configPath must not be empty")
 	}
 
 	manager := &ConfigManager[T]{
-		v:               viper.New(),
-		ConfigPath:      configPath,
-		BackupPath:      backupPath,
-		requiredKeys:    requiredKeys,
-		Config:          configPtr,
-		checkInterval:   checkInterval,
-		logInterval:     logInterval,
-		preRestoreFunc:  preRestoreFunc,
-		postRestoreFunc: postRestoreFunc,
+		v:             viper.New(),
+		ConfigPath:    configPath,
+		BackupPath:    backupPath,
+		requiredKeys:  requiredKeys,
+		Config:        configPtr,
+		checkInterval: checkInterval,
+		logInterval:   logInterval,
 	}
 
 	manager.v.SetConfigFile(configPath)
@@ -215,6 +211,16 @@ func (cm *ConfigManager[T]) LogConfig() {
 		log.Printf("%s: %+v\n", cm.ConfigPath, *cm.Config)
 		cm.mu.RUnlock()
 	}
+}
+
+// SetPreRestoreHandler sets the handler function to run before restore from backup
+func (cm *ConfigManager[T]) SetPreRestoreHandler(handler func()) {
+	cm.preRestoreFunc = handler
+}
+
+// SetPostRestoreHandler sets the handler function to run after restore from backup
+func (cm *ConfigManager[T]) SetPostRestoreHandler(handler func()) {
+	cm.postRestoreFunc = handler
 }
 
 // SetKey sets a key-value pair in the Viper config.
