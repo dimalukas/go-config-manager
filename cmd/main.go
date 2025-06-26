@@ -38,8 +38,8 @@ func main() {
 		log.Fatalf("init failed: %v", err)
 	}
 
-	mainConfigManager.SetPreRestoreFunc(preRestoreFunc)
-	mainConfigManager.SetPostRestoreFunc(postRestoreFunc)
+	mainConfigManager.SetPreRestoreHandler(preRestoreFunc)
+	mainConfigManager.SetPostRestoreHandler(postRestoreFunc)
 
 	go simulateConfigChanges(mainConfigManager)
 	go addRandomKeyPeriodically(mainConfigManager)

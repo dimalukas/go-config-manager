@@ -2,10 +2,12 @@ module github.com/dimalukas/go-config-manager
 
 go 1.23.4
 
-require github.com/spf13/viper v1.20.1
+require (
+	github.com/fsnotify/fsnotify v1.9.0
+	github.com/spf13/viper v1.20.1
+)
 
 require (
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
