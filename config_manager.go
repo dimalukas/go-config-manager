@@ -193,11 +193,9 @@ func (cm *ConfigManager[T]) watchLoop(ctx context.Context) {
 		case <-ticker.C:
 			if valid, err := cm.isConfigValid(); !valid {
 				log.Printf("invalid config: %s: %v", cm.ConfigPath, err)
-				cm.mu.Lock()
 				if err := cm.restoreFromBackup(); err != nil {
 					log.Printf("restore config '%s' error: %v", cm.ConfigPath, err)
 				}
-				cm.mu.Unlock()
 			}
 		}
 	}
