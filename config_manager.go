@@ -16,6 +16,7 @@ import (
 type ConfigManager[T any] struct {
 	v               *viper.Viper
 	Config          *T
+	watchEnabled    bool
 	mu              sync.RWMutex
 	ConfigPath      string
 	BackupPath      string
@@ -48,6 +49,7 @@ func NewConfigManager[T any](
 		Config:        configPtr,
 		checkInterval: checkInterval,
 		logInterval:   logInterval,
+		watchEnabled:  true,
 	}
 
 	manager.v.SetConfigFile(configPath)
@@ -74,6 +76,9 @@ func NewConfigManager[T any](
 	manager.v.OnConfigChange(func(e fsnotify.Event) {
 		manager.mu.Lock()
 		defer manager.mu.Unlock()
+		if !manager.watchEnabled {
+			return
+		}
 		if valid, _ := manager.isConfigValid(); valid {
 			if err := manager.v.Unmarshal(manager.Config); err != nil {
 				log.Printf("failed to unmarshal config on change: %v", err)
@@ -191,6 +196,10 @@ func (cm *ConfigManager[T]) watchLoop(ctx context.Context) {
 			log.Printf("Stopped periodic config check for %s", cm.ConfigPath)
 			return
 		case <-ticker.C:
+			if !cm.watchEnabled {
+				continue
+			}
+
 			if valid, err := cm.isConfigValid(); !valid {
 				log.Printf("invalid config: %s: %v", cm.ConfigPath, err)
 				if err := cm.restoreFromBackup(); err != nil {
@@ -225,6 +234,7 @@ func (cm *ConfigManager[T]) SetPostRestoreHandler(handler func()) {
 func (cm *ConfigManager[T]) SetKey(key string, value any) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
+	cm.watchEnabled = false // Disable watch while setting key
 	cm.v.Set(key, value)
 }
 
@@ -270,5 +280,7 @@ func (cm *ConfigManager[T]) SaveConfig(unmarshal bool) error {
 			return err
 		}
 	}
+
+	cm.watchEnabled = true // Re-enable watch after saving
 	return nil
 }
