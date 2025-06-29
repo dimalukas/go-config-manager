@@ -90,29 +90,40 @@ func (cm *ConfigManager[T]) isConfigValid() (bool, error) {
 	if cm.v == nil {
 		return false, fmt.Errorf("viper instance is nil")
 	}
-	// Try to re-read the config file
-	if err := cm.v.ReadInConfig(); err != nil {
-		return false, fmt.Errorf("config file '%s'is not valid YAML: %v", cm.ConfigPath, err)
+
+	// Create a fresh viper instance to validate the file on disk without merging
+	tempViper := viper.New()
+	tempViper.SetConfigFile(cm.ConfigPath)
+	tempViper.SetConfigType("yaml")
+
+	// Try to read the config file with fresh instance
+	if err := tempViper.ReadInConfig(); err != nil {
+		return false, fmt.Errorf("config file '%s' is not valid YAML: %v", cm.ConfigPath, err)
 	}
 
 	if len(cm.requiredKeys) == 0 {
+		// If validation passes and no required keys, merge settings from tempViper
+		for key, value := range tempViper.AllSettings() {
+			cm.v.Set(key, value)
+		}
 		return true, nil
 	}
 
-	// Check all required keys are set
+	// Check all required keys are set in the fresh instance
 	missingKeys := []string{}
 	required := make(map[string]struct{}, len(cm.requiredKeys))
 	for _, key := range cm.requiredKeys {
 		required[key] = struct{}{}
-		if !cm.v.IsSet(key) {
+		if !tempViper.IsSet(key) {
 			missingKeys = append(missingKeys, key)
 		}
 	}
 	if len(missingKeys) > 0 {
 		return false, fmt.Errorf("config file '%s' is missing required keys: %v", cm.ConfigPath, missingKeys)
 	}
-	// Check for extra keys
-	allKeys := cm.v.AllKeys()
+
+	// Check for extra keys using the fresh viper instance
+	allKeys := tempViper.AllKeys()
 	extraKeys := []string{}
 	for _, key := range allKeys {
 		if _, ok := required[key]; !ok {
@@ -125,8 +136,13 @@ func (cm *ConfigManager[T]) isConfigValid() (bool, error) {
 
 	// Try to unmarshal into the config struct to catch type errors
 	var temp T
-	if err := cm.v.Unmarshal(&temp); err != nil {
+	if err := tempViper.Unmarshal(&temp); err != nil {
 		return false, fmt.Errorf("config file '%s' has invalid values: %v", cm.ConfigPath, err)
+	}
+
+	// If all validation passes, merge settings from tempViper into main instance
+	for key, value := range tempViper.AllSettings() {
+		cm.v.Set(key, value)
 	}
 
 	return true, nil
