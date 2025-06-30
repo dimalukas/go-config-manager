@@ -45,7 +45,7 @@ func main() {
 	go addRandomKeyPeriodically(mainConfigManager)
 	go corruptConfigFilePeriodically(mainConfigManager)
 	go mainConfigManager.LogConfig()
-	mainConfigManager.StartWatch()
+	mainConfigManager.StartWatch(true)
 
 	select {}
 }

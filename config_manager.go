@@ -8,8 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
+)
+
+var (
+	watchAndRestore = false
 )
 
 // ConfigManager encapsulates all logic for managing a single Viper configuration.
@@ -69,17 +72,6 @@ func NewConfigManager[T any](
 	if err := manager.v.Unmarshal(&manager.Config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config from '%s': %w", configPath, err)
 	}
-
-	manager.v.WatchConfig()
-	manager.v.OnConfigChange(func(e fsnotify.Event) {
-		manager.mu.Lock()
-		defer manager.mu.Unlock()
-		if valid, _ := manager.isConfigValid(); valid {
-			if err := manager.v.Unmarshal(manager.Config); err != nil {
-				log.Printf("failed to unmarshal config on change: %v", err)
-			}
-		}
-	})
 
 	log.Printf("Config loaded from '%s'", configPath)
 	return manager, nil
@@ -182,9 +174,10 @@ func (cm *ConfigManager[T]) restoreFromBackup() error {
 
 // StartWatch starts the periodic config check in a background goroutine.
 // If already running, it stops the previous watcher before starting a new one.
-func (cm *ConfigManager[T]) StartWatch() {
+func (cm *ConfigManager[T]) StartWatch(restore bool) {
 	cm.StopWatch() // Stop any existing watcher
 	cm.watchCtx, cm.watchCancel = context.WithCancel(context.Background())
+	watchAndRestore = restore
 	go cm.watchLoop(cm.watchCtx)
 }
 
@@ -209,6 +202,11 @@ func (cm *ConfigManager[T]) watchLoop(ctx context.Context) {
 		case <-ticker.C:
 			if valid, err := cm.isConfigValid(); !valid {
 				log.Printf("invalid config: %s: %v", cm.ConfigPath, err)
+				
+				if !watchAndRestore {
+					continue
+				}
+				
 				if err := cm.restoreFromBackup(); err != nil {
 					log.Printf("restore config '%s' error: %v", cm.ConfigPath, err)
 				}
